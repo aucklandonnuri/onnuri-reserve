@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar, ChevronRight, MapPin, Clock, User, Phone } from 'lucide-react';
+import { Calendar, ChevronRight, Clock, User, Phone } from 'lucide-react';
 import Link from 'next/link';
 
-// 1. 인터페이스에 user_phone 추가 (중요!)
 interface Hall { id: number; name: string; }
 interface Booking {
   id: number;
   hall_id: number;
   user_name: string;
-  user_phone: string; // 추가됨
+  user_phone: string;
   start_time: string;
   end_time: string;
   purpose: string;
@@ -43,7 +42,7 @@ export default function Home() {
   const formatTime = (isoString: string) => isoString.split('T')[1].substring(0, 5);
 
   return (
-    <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 pb-24">
+    <main className="min-h-screen bg-slate-50 flex flex-col items-center p-4 pb-10">
       {/* 상단 헤더 및 날짜 선택 섹션 */}
       <div className="w-full max-w-md py-6 flex flex-col items-center sticky top-0 bg-slate-50 z-10">
         <h1 className="text-2xl font-bold text-slate-800 mb-4">홀 예약 현황</h1>
@@ -63,9 +62,10 @@ export default function Home() {
         {halls.map((hall) => {
           const hallBookings = getHallBookings(hall.id);
           return (
-            <div key={hall.id} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+            <div key={hall.id} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+              {/* 각 홀의 예약 버튼: hallId와 hallName을 확실하게 전달합니다 */}
               <Link 
-                href={`/reserve?hallId=${hall.id}&hallName=${hall.name}&date=${selectedDate}`}
+                href={`/reserve?hallId=${hall.id}&hallName=${encodeURIComponent(hall.name)}&date=${selectedDate}`}
                 className="flex items-center justify-between p-6 border-b border-slate-50 active:bg-slate-50"
               >
                 <div className="flex items-center gap-4">
@@ -99,7 +99,6 @@ export default function Home() {
                           <div className="text-base text-slate-600 font-medium ml-1">
                             목적: {b.purpose}
                           </div>
-                          {/* 연락처 표시 추가 */}
                           <div className="flex items-center gap-2 text-blue-600 font-bold text-base mt-2 bg-white w-fit px-3 py-1 rounded-lg shadow-sm">
                             <Phone size={16} />
                             {b.user_phone}
@@ -118,17 +117,8 @@ export default function Home() {
           );
         })}
       </div>
-
-      {/* 하단 플로팅 버튼 */}
-      <div className="fixed bottom-6 w-full max-w-md px-4">
-        <Link 
-          href="/reserve"
-          className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-transform"
-        >
-          <Calendar size={24} />
-          빠른 예약하기
-        </Link>
-      </div>
+      
+      {/* 하단 플로팅 버튼 섹션 삭제됨 */}
     </main>
   );
 }
