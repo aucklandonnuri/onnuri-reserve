@@ -25,56 +25,83 @@ function ReserveContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 1. [시간 역전 방지] 시작 시각이 종료 시각보다 늦은지 즉시 체크
-    const startValue = formData.startTime.replace(':', '');
-    const endValue = formData.endTime.replace(':', '');
+    // 1. [예약 오픈 기간 제한] 매월 마지막 주일 저녁 6시 오픈 로직
+    const today = new Date();
+    const targetDate = new Date(formData.date);
+    
+    const thisYear = today.getFullYear();
+    const thisMonth = today.getMonth(); 
+    const targetMonth = targetDate.getMonth();
+    const targetYear = targetDate.getFullYear();
 
-    if (parseInt(startValue) >= parseInt(endValue)) {
+    // 이번 달보다 미래의 예약을 시도하는지 체크
+    const isFutureMonth = (targetYear > thisYear) || (targetYear === thisYear && targetMonth > thisMonth);
+
+    if (isFutureMonth) {
+      const lastDayOfThisMonth = new Date(thisYear, thisMonth + 1, 0);
+      const lastSunday = new Date(lastDayOfThisMonth);
+      lastSunday.setDate(lastDayOfThisMonth.getDate() - lastDayOfThisMonth.getDay());
+      lastSunday.setHours(18, 0, 0, 0); // 저녁 6시 설정
+
+      // 다음 달 예약인데 아직 오픈 전인 경우
+      if ((targetYear === thisYear && targetMonth === thisMonth + 1) || (thisMonth === 11 && targetMonth === 0)) {
+        if (today < lastSunday) {
+          const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+          alert(`⚠️ ${monthNames[targetMonth]} 예약은 이번 달 마지막 주일(5일 전후) 저녁 6시부터 가능합니다.`);
+          return;
+        }
+      } 
+      // 두 달 뒤 이상인 경우 무조건 차단
+      else {
+        alert('⚠️ 예약은 한 달 단위로만 미리 가능합니다.');
+        return;
+      }
+    }
+
+    // 2. [시간 역전 방지] 숫자로 변환하여 비교
+    const startNum = parseInt(formData.startTime.replace(':', ''));
+    const endNum = parseInt(formData.endTime.replace(':', ''));
+
+    if (startNum >= endNum) {
       alert('❌ 마침 시간은 시작 시간보다 이후여야 합니다.');
       return;
     }
 
-    if (!hallId) return alert('홀 정보가 없습니다.');
+    if (!hallId) return alert('홀 정보가 누락되었습니다.');
 
-    // 2. [중복 체크] 현재 날짜의 해당 홀 예약을 모두 가져옴
-    const { data: existing, error: fetchError } = await supabase
+    const startISO = `${formData.date}T${formData.startTime}:00`;
+    const endISO = `${formData.date}T${formData.endTime}:00`;
+
+    // 3. [중복 체크] 현재 날짜의 해당 홀 예약 조회
+    const { data: existing } = await supabase
       .from('bookings')
       .select('start_time, end_time')
       .eq('hall_id', parseInt(hallId))
       .gte('start_time', `${formData.date}T00:00:00`)
       .lte('start_time', `${formData.date}T23:59:59`);
 
-    if (fetchError) {
-      alert('데이터 확인 중 오류가 발생했습니다.');
-      return;
-    }
+    const newStart = new Date(startISO).getTime();
+    const newEnd = new Date(endISO).getTime();
 
-    // 새 예약 시간 (비교를 위해 초 단위까지 포함한 문자열 생성)
-    const newStart = `${formData.date}T${formData.startTime}:00`;
-    const newEnd = `${formData.date}T${formData.endTime}:00`;
-
-    // 3. [엄격한 겹침 검사] (새 시작 < 기존 종료) AND (새 종료 > 기존 시작)
     const isOverlapping = existing?.some(b => {
-      // DB의 타임존(+00) 등을 무시하고 앞쪽 19자리(YYYY-MM-DDTHH:mm:ss)만 따서 비교
-      const exStart = b.start_time.substring(0, 19);
-      const exEnd = b.end_time.substring(0, 19);
-      
+      const exStart = new Date(b.start_time).getTime();
+      const exEnd = new Date(b.end_time).getTime();
       return (newStart < exEnd && newEnd > exStart);
     });
 
     if (isOverlapping) {
-      alert('⚠️ 해당 시간에는 이미 다른 예약이 있습니다. 현황판을 다시 확인해 주세요.');
+      alert('⚠️ 이미 다른 예약이 있는 시간대입니다. 현황판을 확인해주세요.');
       return;
     }
 
-    // 4. 저장 진행
+    // 4. 데이터 저장
     const { error } = await supabase.from('bookings').insert([{
       hall_id: parseInt(hallId),
       user_name: formData.userName,
       user_phone: formData.userPhone,
       purpose: formData.purpose,
-      start_time: newStart,
-      end_time: newEnd,
+      start_time: startISO,
+      end_time: endISO,
     }]);
 
     if (!error) {
@@ -94,34 +121,37 @@ function ReserveContent() {
         </button>
 
         <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-          <h2 className="text-2xl font-black text-slate-800 mb-6 text-center">
+          <h2 className="text-2xl font-black text-slate-800 mb-2 text-center">
             <span className="text-blue-600">{hallName}</span> 예약하기
           </h2>
+          <p className="text-center text-slate-400 text-xs mb-8 font-bold italic">
+            * 다음 달 예약은 마지막 주일 저녁 6시에 오픈됩니다.
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <input required type="text" placeholder="예약자 성함" className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold" 
-              onChange={e => setFormData({...formData, userName: e.target.value})} />
-            
-            <input required type="tel" placeholder="연락처" className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold" 
-              onChange={e => setFormData({...formData, userPhone: e.target.value})} />
-            
-            <input required type="text" placeholder="사용 목적" className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold" 
-              onChange={e => setFormData({...formData, purpose: e.target.value})} />
+            <div className="space-y-3">
+              <input required type="text" placeholder="예약자 성함" className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold" 
+                onChange={e => setFormData({...formData, userName: e.target.value})} />
+              <input required type="tel" placeholder="연락처" className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold" 
+                onChange={e => setFormData({...formData, userPhone: e.target.value})} />
+              <input required type="text" placeholder="사용 목적" className="w-full p-4 bg-slate-50 border-none rounded-2xl font-bold" 
+                onChange={e => setFormData({...formData, purpose: e.target.value})} />
+            </div>
 
             <div className="pt-4 space-y-4">
               <div className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-slate-400 ml-1">예약 날짜</span>
+                <span className="text-xs font-bold text-slate-400 ml-1 uppercase">Date</span>
                 <input required type="date" value={formData.date} className="w-full p-4 bg-slate-50 border-none rounded-xl font-bold" 
                   onChange={e => setFormData({...formData, date: e.target.value})} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-slate-400 ml-1">시작 시간</span>
+                  <span className="text-xs font-bold text-slate-400 ml-1 uppercase">Start</span>
                   <input required type="time" className="w-full p-4 bg-slate-50 border-none rounded-xl font-bold" 
                     onChange={e => setFormData({...formData, startTime: e.target.value})} />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold text-slate-400 ml-1">마침 시간</span>
+                  <span className="text-xs font-bold text-slate-400 ml-1 uppercase">End</span>
                   <input required type="time" className="w-full p-4 bg-slate-50 border-none rounded-xl font-bold" 
                     onChange={e => setFormData({...formData, endTime: e.target.value})} />
                 </div>
@@ -129,7 +159,7 @@ function ReserveContent() {
             </div>
 
             <button type="submit" className="w-full py-5 bg-blue-600 text-white rounded-[2rem] font-black text-xl shadow-lg mt-6 active:scale-95 transition-all">
-              예약 신청하기
+              예약 확정하기
             </button>
           </form>
         </div>
@@ -140,7 +170,7 @@ function ReserveContent() {
 
 export default function ReservePage() {
   return (
-    <Suspense fallback={<div className="p-20 text-center font-bold">로딩 중...</div>}>
+    <Suspense fallback={<div className="p-20 text-center font-bold">시스템 로딩 중...</div>}>
       <ReserveContent />
     </Suspense>
   );
