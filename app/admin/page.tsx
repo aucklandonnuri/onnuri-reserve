@@ -10,12 +10,12 @@ export default function AdminPage() {
   const [halls, setHalls] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // [추가] 뉴질랜드 기준 현재 연-월 초기값 설정
+  // [초기값] 뉴질랜드 기준 현재 연-월 설정
   const nzNow = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Pacific/Auckland',
     year: 'numeric',
     month: '2-digit'
-  }).format(new Date()); // 결과 예시: "2026-02"
+  }).format(new Date()); 
 
   const [selectedMonth, setSelectedMonth] = useState(nzNow);
 
@@ -30,32 +30,38 @@ export default function AdminPage() {
     weeks: 4
   });
 
-  // [수정] 월별 필터링이 적용된 데이터 불러오기
+  // [수정된 핵심 로직] 데이터 불러오기
   const fetchData = async () => {
     setLoading(true);
     
-    // 선택된 월의 시작일과 마지막일 계산
+    // 1. 선택된 월의 시작일 (예: 2026-02-01)
     const startDate = `${selectedMonth}-01T00:00:00`;
+    
+    // 2. 다음 달의 시작일을 계산하여 그 날짜 "미만"으로 조회 (가장 정확한 방법)
     const [year, month] = selectedMonth.split('-').map(Number);
-    const lastDay = new Date(year, month, 0).getDate();
-    const endDate = `${selectedMonth}-${lastDay}T23:59:59`;
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    const nextMonthStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00`;
 
-    const { data: bData } = await supabase
+    const { data: bData, error: bError } = await supabase
       .from('bookings')
       .select(`*, halls ( name )`)
       .gte('start_time', startDate)
-      .lte('start_time', endDate)
+      .lt('start_time', nextMonthStr) // 다음 달 1일 직전까지 모든 데이터 포함
       .order('start_time', { ascending: true });
 
     const { data: hData } = await supabase.from('halls').select('*').order('id', { ascending: true });
     
+    if (bError) console.error("Fetch Error:", bError);
     if (bData) setBookings(bData);
     if (hData) setHalls(hData);
     setLoading(false);
   };
 
-  // selectedMonth가 바뀔 때마다 다시 fetch
-  useEffect(() => { fetchData(); }, [selectedMonth]);
+  // 월이 바뀔 때마다 실행
+  useEffect(() => {
+    fetchData();
+  }, [selectedMonth]);
 
   const handleDelete = async (booking: any) => {
     const isRepeatDelete = confirm(
