@@ -1,8 +1,8 @@
-'use client';
+// 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Trash2, Calendar as CalendarIcon, Info, ArrowLeft, Repeat, Filter, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Calendar as CalendarIcon, Info, ArrowLeft, Repeat, Filter, Loader2, ChevronLeft, ChevronRight, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminPage() {
@@ -38,7 +38,6 @@ export default function AdminPage() {
     fetchData(nzNow);
   }, [fetchData]);
 
-  // [추가] 월 변경 함수 (화살표 버튼용)
   const changeMonth = (offset: number) => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month - 1 + offset, 1);
@@ -90,20 +89,24 @@ export default function AdminPage() {
       <div className="max-w-2xl mx-auto">
         <header className="flex items-center justify-between mb-8">
           <Link href="/" className="p-2 bg-white rounded-full shadow-sm border border-slate-200"><ArrowLeft size={20} /></Link>
-          <h1 className="text-xl font-black text-slate-900 uppercase">Admin Center</h1>
+          <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Admin Center</h1>
           <div className="w-10"></div>
         </header>
 
-        {/* 1. 정기 예약 폼 (생략 없이 유지) */}
+        {/* 1. 정기 예약 폼 (목적 우선순위 조정) */}
         <section className="bg-blue-700 p-6 rounded-[2.5rem] shadow-xl mb-10 text-white border-b-8 border-blue-900">
           <div className="flex items-center gap-2 mb-4 font-black italic"><Repeat size={20}/> REGULAR BOOKING</div>
           <form onSubmit={handleRepeatSubmit} className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 text-slate-900">
+              {/* 목적을 단독행으로 크게 배치 */}
+              <input required type="text" placeholder="사용 목적 (예: 금요 기도회)" className="p-4 rounded-2xl font-black outline-none bg-blue-50 border-2 border-blue-300 focus:bg-white transition-colors" onChange={e => setRepeatData({...repeatData, purpose: e.target.value})} />
+            </div>
             <div className="grid grid-cols-2 gap-2 text-slate-900">
               <select className="p-4 rounded-2xl font-black outline-none" onChange={e => setRepeatData({...repeatData, hallId: e.target.value})}>
                 <option value="">홀 선택</option>
                 {halls.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
-              <input type="text" placeholder="목적" className="p-4 rounded-2xl font-black outline-none" onChange={e => setRepeatData({...repeatData, purpose: e.target.value})} />
+              <input type="text" placeholder="예약자명" value={repeatData.userName} className="p-4 rounded-2xl font-black outline-none" onChange={e => setRepeatData({...repeatData, userName: e.target.value})} />
             </div>
             <div className="grid grid-cols-2 gap-2 text-slate-900">
               <input type="date" className="p-4 rounded-2xl font-black outline-none" onChange={e => setRepeatData({...repeatData, startDate: e.target.value})} />
@@ -117,7 +120,7 @@ export default function AdminPage() {
           </form>
         </section>
 
-        {/* 2. [수정됨] 월 선택 UI - 화살표 버튼 추가 */}
+        {/* 2. 월 선택 UI */}
         <div className="mb-6 space-y-3">
           <div className="flex items-center justify-between px-2 font-black text-slate-800">
             <div className="flex items-center gap-2"><Filter size={18} /> SELECT MONTH</div>
@@ -134,7 +137,7 @@ export default function AdminPage() {
                 type="month" 
                 value={selectedMonth}
                 onChange={(e) => { setSelectedMonth(e.target.value); fetchData(e.target.value); }}
-                onClick={(e) => e.currentTarget.showPicker?.()} // 클릭 시 강제로 달력 열기
+                onClick={(e) => e.currentTarget.showPicker?.()}
                 className="w-full p-5 bg-white border-4 border-blue-600 rounded-[2rem] font-black text-slate-900 text-2xl shadow-xl text-center outline-none cursor-pointer"
               />
             </div>
@@ -145,7 +148,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 3. 예약 리스트 */}
+        {/* 3. 예약 리스트 (UI 개선 핵심 섹션) */}
         {loading ? (
           <div className="text-center py-20 text-blue-600 font-black animate-pulse"><Loader2 size={40} className="mx-auto animate-spin mb-2"/>LOADING...</div>
         ) : (
@@ -154,19 +157,27 @@ export default function AdminPage() {
               <div className="text-center py-20 bg-white rounded-[2.5rem] border-2 border-dashed text-slate-400 font-black italic">{selectedMonth} 예약 없음</div>
             ) : (
               bookings.map((b) => (
-                <div key={b.id} className="bg-white p-6 rounded-[2.2rem] shadow-sm border-2 border-slate-100 flex items-center justify-between">
-                  <div className="space-y-1">
+                <div key={b.id} className="bg-white p-6 rounded-[2.2rem] shadow-sm border-2 border-slate-100 flex items-center justify-between hover:border-blue-200 transition-colors">
+                  <div className="space-y-2">
+                    {/* 상단: 홀 정보와 예약자 성함 (보조 정보) */}
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black px-2 py-1 bg-blue-100 text-blue-700 rounded-lg">{b.halls?.name}</span>
-                      <span className="text-lg font-black text-slate-900">{b.user_name}</span>
+                      <span className="text-[10px] font-black px-2 py-0.5 bg-slate-800 text-white rounded-md uppercase tracking-wider">{b.halls?.name}</span>
+                      <span className="text-xs font-bold text-slate-400">예약자: {b.user_name}</span>
                     </div>
-                    <div className="text-sm text-slate-700 font-black flex items-center gap-2">
+                    
+                    {/* 메인: 사용 목적 (가장 크게 강조) */}
+                    <div className="text-xl font-black text-slate-900 flex items-center gap-2 tracking-tight">
+                      <Bookmark size={18} className="text-blue-600 fill-blue-600" />
+                      {b.purpose}
+                    </div>
+
+                    {/* 하단: 시간 정보 */}
+                    <div className="text-sm text-slate-600 font-bold flex items-center gap-2 bg-slate-50 w-fit px-3 py-1 rounded-full">
                       <CalendarIcon size={14} className="text-blue-500" /> 
-                      {b.start_time.split('T')[0]} | {b.start_time.split('T')[1].substring(0,5)} - {b.end_time.split('T')[1].substring(0,5)}
+                      {b.start_time.split('T')[0]} | <span className="text-blue-700">{b.start_time.split('T')[1].substring(0,5)} - {b.end_time.split('T')[1].substring(0,5)}</span>
                     </div>
-                    <div className="text-[13px] text-slate-400 font-bold italic"><Info size={13} className="inline mr-1" />{b.purpose}</div>
                   </div>
-                  <button onClick={() => handleDelete(b)} className="p-4 text-red-500 hover:bg-red-50 rounded-2xl transition-colors"><Trash2 size={24} /></button>
+                  <button onClick={() => handleDelete(b)} className="p-4 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-all"><Trash2 size={24} /></button>
                 </div>
               ))
             )}

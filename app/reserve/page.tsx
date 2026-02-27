@@ -1,4 +1,4 @@
-'use client';
+// 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, Suspense } from 'react';
@@ -39,12 +39,12 @@ function ReserveContent() {
       const lastDayOfThisMonth = new Date(thisYear, thisMonth + 1, 0);
       const lastSunday = new Date(lastDayOfThisMonth);
       lastSunday.setDate(lastDayOfThisMonth.getDate() - lastDayOfThisMonth.getDay());
+      // 기존 로직 유지: 마지막 주 일요일 저녁 6시 오픈
       lastSunday.setHours(18, 0, 0, 0);
 
       if ((targetYear === thisYear && targetMonth === thisMonth + 1) || (thisMonth === 11 && targetMonth === 0)) {
         if (today < lastSunday) {
           const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
-          // [수정완료] (5일 전후) 문구를 완전히 삭제했습니다.
           alert(`⚠️ ${monthNames[targetMonth]} 예약은 이번 달 마지막 주일 저녁 6시부터 가능합니다.`);
           return;
         }
@@ -123,23 +123,28 @@ function ReserveContent() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
+              {/* [수정] 사용 목적을 가장 위로 올리고 강조함 */}
               <div>
-                <label className="block text-sm font-black text-slate-800 mb-2 ml-1 text-lg">예약자 성함</label>
-                <input required type="text" placeholder="성함을 입력하세요" 
-                  className="w-full p-5 bg-slate-100 border-2 border-slate-200 rounded-2xl font-black text-slate-900 placeholder:text-slate-400 text-lg outline-none focus:border-blue-600" 
-                  onChange={e => setFormData({...formData, userName: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-800 mb-2 ml-1 text-lg">연락처</label>
-                <input required type="tel" placeholder="010-0000-0000" 
-                  className="w-full p-5 bg-slate-100 border-2 border-slate-200 rounded-2xl font-black text-slate-900 placeholder:text-slate-400 text-lg outline-none focus:border-blue-600" 
-                  onChange={e => setFormData({...formData, userPhone: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-800 mb-2 ml-1 text-lg">사용 목적</label>
-                <input required type="text" placeholder="예: 주일학교 모임" 
-                  className="w-full p-5 bg-slate-100 border-2 border-slate-200 rounded-2xl font-black text-slate-900 placeholder:text-slate-400 text-lg outline-none focus:border-blue-600" 
+                <label className="block text-sm font-black text-blue-700 mb-2 ml-1 text-lg">✨ 사용 목적 (가장 중요)</label>
+                <input required type="text" placeholder="예: 주일학교 모임, 성가대 연습" 
+                  className="w-full p-5 bg-blue-50 border-2 border-blue-200 rounded-2xl font-black text-slate-900 placeholder:text-slate-400 text-lg outline-none focus:border-blue-600 shadow-sm" 
                   onChange={e => setFormData({...formData, purpose: e.target.value})} />
+              </div>
+
+              {/* 예약자 정보는 아래로 배치 */}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-black text-slate-800 mb-2 ml-1 text-lg">예약자 성함</label>
+                  <input required type="text" placeholder="성함을 입력하세요" 
+                    className="w-full p-5 bg-slate-100 border-2 border-slate-200 rounded-2xl font-black text-slate-900 placeholder:text-slate-400 text-lg outline-none focus:border-blue-600" 
+                    onChange={e => setFormData({...formData, userName: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-sm font-black text-slate-800 mb-2 ml-1 text-lg">연락처</label>
+                  <input required type="tel" placeholder="010-0000-0000" 
+                    className="w-full p-5 bg-slate-100 border-2 border-slate-200 rounded-2xl font-black text-slate-900 placeholder:text-slate-400 text-lg outline-none focus:border-blue-600" 
+                    onChange={e => setFormData({...formData, userPhone: e.target.value})} />
+                </div>
               </div>
             </div>
 
