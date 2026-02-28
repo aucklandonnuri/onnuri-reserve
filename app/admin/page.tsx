@@ -61,36 +61,56 @@ export default function AdminPage() {
     if (!repeatData.hallId || !repeatData.startDate) return alert('홀과 시작날짜 선택 필수');
     
     const newBookings = [];
+    
+    // 1. 입력받은 시작날짜(YYYY-MM-DD)를 자바스크립트 Date 객체로 만들 때 
+    // 시간대 영향을 받지 않도록 세팅 (오전 12시 기준)
     const [sYear, sMonth, sDay] = repeatData.startDate.split('-').map(Number);
-    const baseDateForDay = new Date(sYear, sMonth - 1, sDay); 
-    const dayOfWeek = baseDateForDay.getDay(); 
+    // 뉴질랜드 시간으로 해당 날짜의 객체를 생성
+    const baseDate = new Date(sYear, sMonth - 1, sDay); 
+    const dayOfWeek = baseDate.getDay(); 
 
     if (repeatType === 'weekly') {
       let current = new Date(sYear, sMonth - 1, sDay);
       for (let i = 0; i < repeatData.weeksCount; i++) {
+        // 날짜를 YYYY-MM-DD 문자열로 직접 조립 (UTC 변환 방지)
         const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
         newBookings.push({
-          hall_id: parseInt(repeatData.hallId), user_name: repeatData.userName, user_phone: repeatData.userPhone,
-          purpose: repeatData.purpose, start_time: `${dateStr}T${repeatData.startTime}:00`, end_time: `${dateStr}T${repeatData.endTime}:00`
+          hall_id: parseInt(repeatData.hallId), 
+          user_name: repeatData.userName, 
+          user_phone: repeatData.userPhone,
+          purpose: repeatData.purpose, 
+          start_time: `${dateStr}T${repeatData.startTime}:00`, 
+          end_time: `${dateStr}T${repeatData.endTime}:00`
         });
         current.setDate(current.getDate() + 7);
       }
     } else {
       if (selectedWeeks.length === 0) return alert('반복할 주차를 선택해주세요.');
+      
+      // 향후 6개월치 생성
       for (let m = 0; m < 6; m++) {
         const year = sYear + Math.floor((sMonth - 1 + m) / 12);
         const month = (sMonth - 1 + m) % 12;
+
         let count = 0;
+        // 해당 월의 1일부터 말일까지 루프
         for (let d = 1; d <= 31; d++) {
           const tempDate = new Date(year, month, d);
+          // 월이 넘어가면 중단
           if (tempDate.getMonth() !== month) break;
+          
           if (tempDate.getDay() === dayOfWeek) {
             count++;
             if (selectedWeeks.includes(count)) {
+              // 날짜를 문자열로 직접 조립
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
               newBookings.push({
-                hall_id: parseInt(repeatData.hallId), user_name: repeatData.userName, user_phone: repeatData.userPhone,
-                purpose: repeatData.purpose, start_time: `${dateStr}T${repeatData.startTime}:00`, end_time: `${dateStr}T${repeatData.endTime}:00`
+                hall_id: parseInt(repeatData.hallId), 
+                user_name: repeatData.userName, 
+                user_phone: repeatData.userPhone,
+                purpose: repeatData.purpose, 
+                start_time: `${dateStr}T${repeatData.startTime}:00`, 
+                end_time: `${dateStr}T${repeatData.endTime}:00`
               });
             }
           }
@@ -100,8 +120,10 @@ export default function AdminPage() {
 
     const { error } = await supabase.from('bookings').insert(newBookings);
     if (!error) {
-      alert(`${newBookings.length}건 등록 완료!`);
+      alert(`${newBookings.length}건의 예약이 등록되었습니다.`);
       fetchData(selectedMonth);
+    } else {
+      alert('등록 중 오류가 발생했습니다: ' + error.message);
     }
   };
 
