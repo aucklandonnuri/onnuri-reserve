@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar as CalendarIcon, Clock, Info, CheckCircle2, AlertCircle, User, Phone, Send } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2, User, Phone, Send, Info } from 'lucide-react';
 
 export default function BookingPage() {
   const [halls, setHalls] = useState<any[]>([]);
@@ -48,14 +48,53 @@ export default function BookingPage() {
     fetchCurrentDayBookings();
   }, [fetchCurrentDayBookings]);
 
+  // ⭐ 다음 달 예약 가능 여부 체크 로직
+  const checkBookingAvailability = (selectedDateStr: string) => {
+    // 1. 뉴질랜드 현재 시간 기준 설정
+    const nzTimeStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Pacific/Auckland',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false
+    }).format(new Date());
+    
+    const now = new Date(nzTimeStr);
+    const selected = new Date(selectedDateStr);
+
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0 (1월) ~ 11 (12월)
+    const selectedYear = selected.getFullYear();
+    const selectedMonth = selected.getMonth();
+
+    // 사용자가 선택한 날짜가 다음 달 이후인 경우 체크
+    if (selectedYear > currentYear || (selectedYear === currentYear && selectedMonth > currentMonth)) {
+      // 이번 달의 마지막 날 구하기
+      const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+      // 이번 달의 마지막 일요일 찾기
+      const lastSunday = new Date(lastDayOfMonth);
+      lastSunday.setDate(lastDayOfMonth.getDate() - lastDayOfMonth.getDay());
+      // 마지막 일요일 오후 6시(18시)로 설정
+      lastSunday.setHours(18, 0, 0, 0);
+
+      if (now < lastSunday) {
+        const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
+        alert(`다음 달 예약은 이번 달 마지막 주 일요일(${monthNames[currentMonth]} ${lastSunday.getDate()}일) 오후 6시부터 가능합니다.`);
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedHall || !selectedDate) return alert('홀과 날짜를 선택해주세요.');
 
+    // ⭐ 예약 오픈 시간 체크 실행
+    if (!checkBookingAvailability(selectedDate)) return;
+
     const startDT = `${selectedDate}T${formData.startTime}:00`;
     const endDT = `${selectedDate}T${formData.endTime}:00`;
 
-    if (startDT >= endDT) return alert('종료 시간 오류!');
+    if (startDT >= endDT) return alert('종료 시간 오류! 시작 시간보다 늦어야 합니다.');
     const isOverlap = existingBookings.some(ex => (startDT < ex.end_time && endDT > ex.start_time));
     if (isOverlap) return alert('선택하신 시간에 이미 예약이 있습니다.');
 
@@ -72,6 +111,8 @@ export default function BookingPage() {
       alert('예약 신청 완료!');
       setFormData({ ...formData, startTime: '', endTime: '', purpose: '' });
       fetchCurrentDayBookings();
+    } else {
+      alert('저장 중 오류가 발생했습니다.');
     }
   };
 
@@ -98,7 +139,7 @@ export default function BookingPage() {
             className="w-full p-5 bg-slate-100 border-none rounded-3xl font-black text-lg outline-none focus:ring-4 focus:ring-blue-100 transition-all" />
         </section>
 
-        {/* STEP 2: 예약 현황 (목적 강조 + 연락처 추가 버전) */}
+        {/* STEP 2: 예약 현황 */}
         {(selectedHall && selectedDate) && (
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between px-2">
@@ -118,10 +159,8 @@ export default function BookingPage() {
                       <div className="bg-blue-600 text-white px-2 py-1.5 rounded-xl font-black text-[9px] shrink-0">
                         {b.start_time.split('T')[1].substring(0, 5)} - {b.end_time.split('T')[1].substring(0, 5)}
                       </div>
-                      {/* 사용 목적 */}
                       <div className="text-slate-900 font-black text-[14px] truncate">{b.purpose}</div>
                     </div>
-                    {/* 예약자 정보 (성함 & 연락처) */}
                     <div className="text-right shrink-0">
                       <div className="text-slate-400 font-bold text-[10px] italic">{b.user_name}</div>
                       <div className="text-blue-500 font-black text-[9px]">{b.user_phone}</div>
@@ -150,7 +189,7 @@ export default function BookingPage() {
               </div>
               <div className="relative">
                 <Info size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-300" />
-                <input required type="text" placeholder="사용 목적 (예: 청년부 연습)" value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})}
+                <input required type="text" placeholder="사용 목적 (예: 찬양 연습)" value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})}
                   className="w-full p-4 pl-12 bg-blue-700 border-none rounded-2xl font-black text-white placeholder:text-blue-300 outline-none focus:ring-2 focus:ring-white/30 transition-all" />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -163,7 +202,6 @@ export default function BookingPage() {
             <button type="submit" className="w-full py-6 bg-white text-blue-700 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all hover:bg-slate-50 mt-4 uppercase">신청 완료하기</button>
           </form>
         )}
-
       </div>
     </main>
   );
