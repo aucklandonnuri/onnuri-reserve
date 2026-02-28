@@ -48,38 +48,48 @@ export default function AdminPage() {
     fetchData(newMonth);
   };
 
-  // ⭐ 일괄 삭제 로직 복구 및 강화
+  // ⭐ 데이터베이스 타입 충돌 없이 안전하게 일괄 삭제하는 로직
   const handleDelete = async (booking: any) => {
     const isRepeatDelete = confirm(
       "'확인'을 누르면 관련된 반복 일정을 모두 삭제합니다.\n'취소'를 누르면 선택한 이 건만 삭제합니다."
     );
 
     if (isRepeatDelete) {
-      const targetTime = booking.start_time.split('T')[1]; 
-
-      const { data: targets } = await supabase
+      // 1. 해당 홀, 예약자, 목적이 같은 데이터를 먼저 싹 다 가져옵니다.
+      const { data: allRelated } = await supabase
         .from('bookings')
-        .select('id')
+        .select('id, start_time')
         .eq('hall_id', booking.hall_id)
         .eq('user_name', booking.user_name)
-        .eq('purpose', booking.purpose)
-        .like('start_time', `%${targetTime}`);
+        .eq('purpose', booking.purpose);
 
-      if (targets && targets.length > 0) {
-        const targetIds = targets.map(t => t.id);
-        const { error } = await supabase.from('bookings').delete().in('id', targetIds);
-        if (!error) alert(`총 ${targetIds.length}건의 반복 예약을 삭제했습니다.`);
+      if (allRelated) {
+        // 2. 그 중에서 "16:30" 처럼 시간(HH:mm)이 일치하는 것들만 골라냅니다.
+        const targetTime = booking.start_time.split('T')[1].substring(0, 5); 
+        const targetIds = allRelated
+          .filter(t => t.start_time.includes(targetTime))
+          .map(t => t.id);
+
+        if (targetIds.length > 0) {
+          // 3. 골라낸 ID들을 한꺼번에 지웁니다.
+          const { error } = await supabase.from('bookings').delete().in('id', targetIds);
+          if (!error) alert(`총 ${targetIds.length}건의 관련된 반복 예약을 모두 삭제했습니다.`);
+        }
       }
     } else {
-      if (confirm('이 건만 삭제하시겠습니까?')) {
+      // 취소를 누른 경우 단일 삭제 확인
+      if (confirm('선택한 이 건만 삭제하시겠습니까?')) {
         const { error } = await supabase.from('bookings').delete().eq('id', booking.id);
-        if (!error) alert('삭제되었습니다.');
+        if (!error) alert('해당 예약이 삭제되었습니다.');
+      } else {
+        return; // 단일 삭제도 취소하면 아무 동작 안 함
       }
     }
+    
+    // 삭제 후 리스트 갱신
     fetchData(selectedMonth);
   };
 
-  // ⭐ 서버 시간대 오류를 원천 차단하는 등록 로직
   const handleRepeatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!repeatData.hallId || !repeatData.startDate) return alert('홀과 시작날짜 선택 필수');
