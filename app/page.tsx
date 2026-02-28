@@ -84,7 +84,7 @@ export default function BookingPage() {
           <p className="text-slate-400 font-bold text-sm mt-1 uppercase tracking-widest">Reserve Your Space</p>
         </header>
 
-        {/* STEP 1 */}
+        {/* STEP 1: 날짜/홀 선택 */}
         <section className="bg-white p-6 rounded-[2.5rem] shadow-xl border-2 border-slate-100 space-y-4">
           <div className="flex items-center gap-2 mb-2 ml-1 text-blue-600 font-black text-xs uppercase">
             <CalendarIcon size={14} /> Step 1. Select Date & Hall
@@ -98,7 +98,7 @@ export default function BookingPage() {
             className="w-full p-5 bg-slate-100 border-none rounded-3xl font-black text-lg outline-none focus:ring-4 focus:ring-blue-100 transition-all" />
         </section>
 
-        {/* STEP 2: 예약 현황 (사용 목적 강조 버전) */}
+        {/* STEP 2: 예약 현황 (목적 강조 + 연락처 추가 버전) */}
         {(selectedHall && selectedDate) && (
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between px-2">
@@ -114,15 +114,18 @@ export default function BookingPage() {
               <div className="grid grid-cols-1 gap-2">
                 {existingBookings.map((b) => (
                   <div key={b.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-blue-600 text-white px-3 py-1.5 rounded-xl font-black text-[10px]">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="bg-blue-600 text-white px-2 py-1.5 rounded-xl font-black text-[9px] shrink-0">
                         {b.start_time.split('T')[1].substring(0, 5)} - {b.end_time.split('T')[1].substring(0, 5)}
                       </div>
-                      {/* ⭐ 사용 목적을 메인으로! */}
-                      <div className="text-slate-900 font-black text-sm">{b.purpose}</div>
+                      {/* 사용 목적 */}
+                      <div className="text-slate-900 font-black text-[14px] truncate">{b.purpose}</div>
                     </div>
-                    {/* ⭐ 성함은 우측에 작게! */}
-                    <div className="text-slate-400 font-bold text-[10px] italic">{b.user_name} 성도님</div>
+                    {/* 예약자 정보 (성함 & 연락처) */}
+                    <div className="text-right shrink-0">
+                      <div className="text-slate-400 font-bold text-[10px] italic">{b.user_name}</div>
+                      <div className="text-blue-500 font-black text-[9px]">{b.user_phone}</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -130,7 +133,7 @@ export default function BookingPage() {
           </section>
         )}
 
-        {/* STEP 3: 신청 양식 (아이콘 포함 원본 스타일 유지) */}
+        {/* STEP 3: 신청 양식 */}
         {(selectedHall && selectedDate) && (
           <form onSubmit={handleSubmit} className="bg-blue-600 p-8 rounded-[3rem] shadow-2xl text-white space-y-4 animate-in zoom-in-95 duration-500">
             <div className="flex items-center gap-2 mb-2 font-black italic"><Send size={18} /> REQUEST BOOKING</div>
