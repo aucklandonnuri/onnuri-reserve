@@ -48,31 +48,50 @@ export default function AdminPage() {
     fetchData(newMonth);
   };
 
+  // ⭐ 일괄 삭제 로직 복구 및 강화
   const handleDelete = async (booking: any) => {
-    if (confirm('이 예약을 삭제하시겠습니까?')) {
-      await supabase.from('bookings').delete().eq('id', booking.id);
-      fetchData(selectedMonth);
+    const isRepeatDelete = confirm(
+      "'확인'을 누르면 관련된 반복 일정을 모두 삭제합니다.\n'취소'를 누르면 선택한 이 건만 삭제합니다."
+    );
+
+    if (isRepeatDelete) {
+      const targetTime = booking.start_time.split('T')[1]; 
+
+      const { data: targets } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('hall_id', booking.hall_id)
+        .eq('user_name', booking.user_name)
+        .eq('purpose', booking.purpose)
+        .like('start_time', `%${targetTime}`);
+
+      if (targets && targets.length > 0) {
+        const targetIds = targets.map(t => t.id);
+        const { error } = await supabase.from('bookings').delete().in('id', targetIds);
+        if (!error) alert(`총 ${targetIds.length}건의 반복 예약을 삭제했습니다.`);
+      }
+    } else {
+      if (confirm('이 건만 삭제하시겠습니까?')) {
+        const { error } = await supabase.from('bookings').delete().eq('id', booking.id);
+        if (!error) alert('삭제되었습니다.');
+      }
     }
+    fetchData(selectedMonth);
   };
 
-  // ⭐ 시간대 오류를 방지하는 등록 로직
+  // ⭐ 서버 시간대 오류를 원천 차단하는 등록 로직
   const handleRepeatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!repeatData.hallId || !repeatData.startDate) return alert('홀과 시작날짜 선택 필수');
     
     const newBookings = [];
-    
-    // 1. 입력받은 시작날짜(YYYY-MM-DD)를 자바스크립트 Date 객체로 만들 때 
-    // 시간대 영향을 받지 않도록 세팅 (오전 12시 기준)
     const [sYear, sMonth, sDay] = repeatData.startDate.split('-').map(Number);
-    // 뉴질랜드 시간으로 해당 날짜의 객체를 생성
     const baseDate = new Date(sYear, sMonth - 1, sDay); 
     const dayOfWeek = baseDate.getDay(); 
 
     if (repeatType === 'weekly') {
       let current = new Date(sYear, sMonth - 1, sDay);
       for (let i = 0; i < repeatData.weeksCount; i++) {
-        // 날짜를 YYYY-MM-DD 문자열로 직접 조립 (UTC 변환 방지)
         const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
         newBookings.push({
           hall_id: parseInt(repeatData.hallId), 
@@ -87,22 +106,18 @@ export default function AdminPage() {
     } else {
       if (selectedWeeks.length === 0) return alert('반복할 주차를 선택해주세요.');
       
-      // 향후 6개월치 생성
       for (let m = 0; m < 6; m++) {
         const year = sYear + Math.floor((sMonth - 1 + m) / 12);
         const month = (sMonth - 1 + m) % 12;
 
         let count = 0;
-        // 해당 월의 1일부터 말일까지 루프
         for (let d = 1; d <= 31; d++) {
           const tempDate = new Date(year, month, d);
-          // 월이 넘어가면 중단
           if (tempDate.getMonth() !== month) break;
           
           if (tempDate.getDay() === dayOfWeek) {
             count++;
             if (selectedWeeks.includes(count)) {
-              // 날짜를 문자열로 직접 조립
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
               newBookings.push({
                 hall_id: parseInt(repeatData.hallId), 
@@ -123,7 +138,7 @@ export default function AdminPage() {
       alert(`${newBookings.length}건의 예약이 등록되었습니다.`);
       fetchData(selectedMonth);
     } else {
-      alert('등록 중 오류가 발생했습니다: ' + error.message);
+      alert('오류 발생: ' + error.message);
     }
   };
 
@@ -140,7 +155,6 @@ export default function AdminPage() {
           <div className="w-10"></div>
         </header>
 
-        {/* 정기 예약 폼 */}
         <section className="bg-blue-700 p-6 rounded-[2.5rem] shadow-xl mb-10 text-white">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 font-black italic"><Repeat size={20}/> REGULAR</div>
@@ -180,14 +194,12 @@ export default function AdminPage() {
           </form>
         </section>
 
-        {/* 필터 부분 생략 (동일) */}
         <div className="flex items-center gap-2 mb-6">
           <button onClick={() => changeMonth(-1)} className="p-4 bg-white border rounded-2xl"><ChevronLeft/></button>
           <input type="month" value={selectedMonth} onChange={(e) => { setSelectedMonth(e.target.value); fetchData(e.target.value); }} className="flex-1 p-4 bg-white border-4 border-blue-600 rounded-2xl font-black text-center" />
           <button onClick={() => changeMonth(1)} className="p-4 bg-white border rounded-2xl"><ChevronRight/></button>
         </div>
 
-        {/* ⭐ 표시 로직 수정: b.start_time.split('T')[0] 로 직접 출력 */}
         {loading ? <div className="text-center font-black animate-pulse">LOADING...</div> : (
           <div className="space-y-3">
             {bookings.map((b) => (
@@ -200,7 +212,6 @@ export default function AdminPage() {
                   <div className="text-lg font-black text-slate-900 flex items-center gap-2 mb-1"><Bookmark size={16} className="text-blue-600" />{b.purpose}</div>
                   <div className="text-xs text-slate-600 font-bold flex items-center gap-2">
                     <CalendarIcon size={12} className="text-blue-500" /> 
-                    {/* 절대 Date 객체로 만들지 않고 문자열 그대로 표시 */}
                     {b.start_time.split('T')[0]} | <span className="text-blue-700">{b.start_time.split('T')[1].substring(0,5)} - {b.end_time.split('T')[1].substring(0,5)}</span>
                   </div>
                 </div>
