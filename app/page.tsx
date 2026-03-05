@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, User, Phone, Send, Info } from 'lucide-react';
+// ⭐ Loader2 아이콘 추가
+import { Calendar as CalendarIcon, Clock, CheckCircle2, User, Phone, Send, Info, Loader2 } from 'lucide-react';
 
 export default function BookingPage() {
   const [halls, setHalls] = useState<any[]>([]);
@@ -10,6 +11,9 @@ export default function BookingPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [existingBookings, setExistingBookings] = useState<any[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+
+  // ⭐ 따닥 방지를 위한 로딩 상태 추가
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     userName: '', userPhone: '', purpose: '', startTime: '', endTime: ''
@@ -77,6 +81,10 @@ export default function BookingPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // ⭐ 이미 제출 중이라면 함수 실행을 즉시 차단 (따닥 방어 1단계)
+    if (isSubmitting) return;
+
     if (!selectedHall || !selectedDate) return alert('홀과 날짜를 선택해주세요.');
     if (!checkBookingAvailability(selectedDate)) return;
 
@@ -84,19 +92,50 @@ export default function BookingPage() {
     const endDT = `${selectedDate}T${formData.endTime}:00`;
 
     if (startDT >= endDT) return alert('종료 시간 오류!');
-    const isOverlap = existingBookings.some(ex => (startDT < ex.end_time && endDT > ex.start_time));
-    if (isOverlap) return alert('선택하신 시간에 이미 예약이 있습니다.');
 
-    const { error } = await supabase.from('bookings').insert([{
-      hall_id: parseInt(selectedHall), user_name: formData.userName,
-      user_phone: formData.userPhone, purpose: formData.purpose,
-      start_time: startDT, end_time: endDT
-    }]);
+    // ⭐ 본격적인 등록 시작 전에 버튼과 폼을 잠급니다
+    setIsSubmitting(true);
 
-    if (!error) {
-      alert('예약 신청 완료!');
-      setFormData({ ...formData, startTime: '', endTime: '', purpose: '' });
-      fetchCurrentDayBookings();
+    try {
+      // 1차 방어: 현재 화면상 데이터로 중복 확인
+      const isOverlapLocal = existingBookings.some(ex => (startDT < ex.end_time && endDT > ex.start_time));
+      if (isOverlapLocal) {
+        alert('선택하신 시간에 이미 예약이 있습니다.');
+        return;
+      }
+
+      // 2차 철통 방어: 서버(DB)에 실시간으로 다시 한번 물어봄 (동시 접속 방어)
+      const { data: checkData } = await supabase
+        .from('bookings')
+        .select('start_time, end_time')
+        .eq('hall_id', selectedHall)
+        .gte('start_time', `${selectedDate}T00:00:00`)
+        .lte('start_time', `${selectedDate}T23:59:59`);
+        
+      const isOverlapDB = checkData?.some(ex => (startDT < ex.end_time && endDT > ex.start_time));
+      if (isOverlapDB) {
+        fetchCurrentDayBookings(); // 누가 이미 예약했다면 최신 현황으로 갱신
+        alert('앗! 방금 다른 분이 먼저 예약을 완료했습니다. 현황을 다시 확인해주세요.');
+        return;
+      }
+
+      // 이상 없으면 DB 저장
+      const { error } = await supabase.from('bookings').insert([{
+        hall_id: parseInt(selectedHall), user_name: formData.userName,
+        user_phone: formData.userPhone, purpose: formData.purpose,
+        start_time: startDT, end_time: endDT
+      }]);
+
+      if (!error) {
+        alert('예약 신청 완료!');
+        setFormData({ ...formData, startTime: '', endTime: '', purpose: '' });
+        fetchCurrentDayBookings();
+      } else {
+        alert('오류가 발생했습니다.');
+      }
+    } finally {
+      // ⭐ 통과하든 에러가 나든 처리가 끝나면 버튼 잠금 해제 (따닥 방어 해제)
+      setIsSubmitting(false);
     }
   };
 
@@ -150,15 +189,29 @@ export default function BookingPage() {
           <form onSubmit={handleSubmit} className="bg-blue-600 p-8 rounded-[3rem] shadow-2xl text-white space-y-4">
             <div className="flex items-center gap-2 mb-2 font-black italic"><Send size={18} /> REQUEST</div>
             <div className="space-y-3">
-              <input required type="text" placeholder="예약자 성함" value={formData.userName} onChange={e => setFormData({...formData, userName: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none" />
-              <input required type="text" placeholder="연락처" value={formData.userPhone} onChange={e => setFormData({...formData, userPhone: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none" />
-              <input required type="text" placeholder="사용 목적" value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none" />
+              {/* ⭐ isSubmitting 중일 때 입력창도 모두 비활성화 처리 */}
+              <input disabled={isSubmitting} required type="text" placeholder="예약자 성함" value={formData.userName} onChange={e => setFormData({...formData, userName: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none disabled:opacity-50" />
+              <input disabled={isSubmitting} required type="text" placeholder="연락처" value={formData.userPhone} onChange={e => setFormData({...formData, userPhone: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none disabled:opacity-50" />
+              <input disabled={isSubmitting} required type="text" placeholder="사용 목적" value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none disabled:opacity-50" />
               <div className="grid grid-cols-2 gap-3">
-                <input required type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none" />
-                <input required type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none" />
+                <input disabled={isSubmitting} required type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none disabled:opacity-50" />
+                <input disabled={isSubmitting} required type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full p-4 bg-blue-700 border-none rounded-2xl font-black text-white outline-none disabled:opacity-50" />
               </div>
             </div>
-            <button type="submit" className="w-full py-6 bg-white text-blue-700 rounded-[2rem] font-black text-xl shadow-xl active:scale-95 mt-4">신청 완료하기</button>
+            
+            {/* ⭐ 로딩 중일 때 버튼 스타일 및 텍스트 변경, 연타 방지 */}
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className={`w-full py-6 rounded-[2rem] font-black text-xl shadow-xl transition-all mt-4 flex justify-center items-center gap-2 ${
+                isSubmitting 
+                  ? 'bg-blue-800 text-blue-400 cursor-not-allowed' 
+                  : 'bg-white text-blue-700 hover:bg-slate-50 active:scale-95'
+              }`}
+            >
+              {isSubmitting && <Loader2 className="animate-spin" size={24} />}
+              {isSubmitting ? '신청 처리 중...' : '신청 완료하기'}
+            </button>
           </form>
         )}
       </div>
